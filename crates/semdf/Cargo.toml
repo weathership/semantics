@@ -1,0 +1,14 @@
+[package]
+name = "semdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "SemDF: Arrow field metadata for SDG/SysML-bound scientific columns"
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]

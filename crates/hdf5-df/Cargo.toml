@@ -1,0 +1,19 @@
+[package]
+name = "hdf5-df"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "DataFusion TableProvider for SysML machine HDF5 (pure-Rust hdf5-pure)"
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+datafusion.workspace = true
+futures = "0.3"
+hdf5-pure.workspace = true
+semdf = { path = "../semdf" }
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

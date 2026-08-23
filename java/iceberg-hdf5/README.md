@@ -10,4 +10,6 @@ Pure-Java read of the SysML machine analog via [jhdf](https://github.com/jamesmu
 just java-test   # JDK 17+ (Signals devenv profile is 21)
 ```
 
-`FormatModel` registration on Impala `impala-iceberg-runtime` is the next Java slice. From-source jhdf SHA vendor is also follow-on (this pin is Maven Central 0.13.0).
+`Hdf5GenericFormatModel` implements Iceberg `FormatModel<Record, Schema>` (`FileFormat.HDF5`, `.h5`). Analog read via `readBuilder` yields 512 generic records. `writeBuilder` fails `#SL.00000019.HDF5WRITE` (not a silent no-op).
+
+`FormatModelRegistry.register` belongs on Impala's classpath (Parquet models load in the registry static init). From-source jhdf SHA vendor is follow-on.

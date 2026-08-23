@@ -12,6 +12,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
     <jhdf.version>0.13.0</jhdf.version>
+    <!-- Signals Iceberg fork published locally after FileFormat.HDF5 (./gradlew publishToMavenLocal). -->
+    <iceberg.version>b310cba.dirty</iceberg.version>
   </properties>
   <dependencies>
     <!-- Pin: io.jhdf:jhdf 0.13.0 (MIT). From-source SHA vendor is a follow-on; this
@@ -20,6 +22,21 @@
       <groupId>io.jhdf</groupId>
       <artifactId>jhdf</artifactId>
       <version>${jhdf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-api</artifactId>
+      <version>${iceberg.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-core</artifactId>
+      <version>${iceberg.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-data</artifactId>
+      <version>${iceberg.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

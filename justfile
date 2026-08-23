@@ -15,6 +15,9 @@ test-python:
         pytest -q {{root}}/python/semdf/tests
     uv run --with pytest --with h5py --with numpy \
         pytest -q {{root}}/analog/test_analog.py
+    PYTHONPATH={{root}}/python/hdf5_iceberg/src:{{root}}/python/semdf/src \
+        uv run --with pytest --with h5py --with numpy --with pyarrow \
+        pytest -q {{root}}/python/hdf5_iceberg/tests
 
 test: check test-python
 

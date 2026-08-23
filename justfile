@@ -25,8 +25,16 @@ analog OUT="analog/fixtures/sdg_machine_small.h5":
     uv run --with h5py --with numpy \
         python {{root}}/analog/generate_sdg_hdf5.py --out {{root}}/{{OUT}} --n-series 8 --n-time 64
 
+# jhdf needs JDK 17+. Lab: Signals devenv profile is 21; PATH java may still be 11.
+signals_java := env_var_or_default("JAVA_HOME", home_directory() / "local/src/wxs/signals/.devenv/profile")
+
+java-test:
+    JAVA_HOME={{signals_java}} PATH="{{signals_java}}/bin:$PATH" \
+      mvn -q -f {{root}}/java/iceberg-hdf5/pom.xml test \
+      -Danalog.fixture={{root}}/analog/fixtures/sdg_machine_small.h5
+
 # Elevated gate (not smoke).
-semantic-ci: analog test
+semantic-ci: analog test java-test
 
 # Many-file scan: DataFusion+hdf5-pure vs h5py. Local copies of the analog.
 # Not smoke. RustFS target: `just hdf5-df-bench-rustfs` (fails if :9010 down).

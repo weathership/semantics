@@ -13,7 +13,7 @@ This is **not** Gaius Engine `/sci`.
 | `python/semdf` | Python/pyarrow SemDF |
 | `python/hdf5_iceberg` | Complete HDF5 library (wave 1+) |
 | `crates/hdf5-df` | DataFusion TableProvider (`hdf5-pure`, K20 row windows, SemDF on `value`) |
-| `java/iceberg-hdf5` | Iceberg `FormatModel` (wave 2) |
+| `java/iceberg-hdf5` | jhdf analog reader (`Hdf5MachineReader`); Iceberg FormatModel next |
 | `analog/` | SysML **machine** HDF5 analog (host + GPU + OTel scope; 7/5/56) |
 | `ontology/scratch/` | SDG TTL for HostMachine / GpuDevice (Aegir-gated corpora later) |
 

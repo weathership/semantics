@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""SysML v2 / SDG-grounded HDF5 analog (PRODML-DAS tree shape).
+"""SysML v2 / SDG machine analog (OTel resource + GPU parts).
 
-Cardinality must match the design fingerprint: depth 4, 7 groups, 5 datasets,
-56 attributes. Group names are SysML/SDG, not OTel. SHA is not compared to
-the OTel analog.
+Shape (depth 4, 7 groups, 5 datasets, 56 attrs) matches the cybersec HDF5
+fingerprint. Vocabulary is **not** PRODML/DAS. Groups are a host Machine
+(SysML part) with GpuDevice parts and an OTel instrumentation Scope.
+PRODML/WITSML remain in SDG for other sources; they are not this analog.
 """
 from __future__ import annotations
 
@@ -19,11 +20,9 @@ try:
 except ImportError as e:  # pragma: no cover
     raise SystemExit("h5py is required") from e
 
-SCHEMA_VERSION = "sdg-sysml-hdf5/1.0"
+SCHEMA_VERSION = "sdg-sysml-machine-hdf5/1.0"
 SDG = "https://signals.zndx.org/sdg#"
 
-# Design K20: 8 MiB series-blocks on int16 Values. CI analog is small; the
-# formula is still recorded so later files share the same grid.
 SERIES_BLOCK_TARGET_BYTES = 8 * 1024 * 1024
 
 
@@ -51,18 +50,19 @@ def _iso(ns: int) -> str:
 
 
 def synth_signal(n_series: int, n_time: int, rng: np.random.Generator) -> np.ndarray:
+    """int16 stand-in for instantaneous GPU power (watts, scaled)."""
     t = np.arange(n_time, dtype=np.float32)
-    base = rng.uniform(40, 120, size=(n_series, 1)).astype(np.float32)
-    sig = base + rng.normal(0, 8, size=(n_series, n_time)).astype(np.float32)
+    base = rng.uniform(80, 250, size=(n_series, 1)).astype(np.float32)
+    sig = base + rng.normal(0, 12, size=(n_series, n_time)).astype(np.float32)
     phase = rng.uniform(0, 2 * np.pi, size=(n_series, 1)).astype(np.float32)
-    sig += 15.0 * np.sin(2 * np.pi * 3.0 * t / max(n_time, 1) + phase)
+    sig += 40.0 * np.sin(2 * np.pi * 2.0 * t / max(n_time, 1) + phase)
     info = np.iinfo(np.int16)
     return np.clip(np.rint(sig), info.min, info.max).astype(np.int16)
 
 
 def write_analog(path: Path, *, n_series: int, n_time: int, seed: int = 1) -> Path:
     rng = np.random.default_rng(seed)
-    step_ns = 10_000_000
+    step_ns = 100_000_000  # 10 Hz
     start_ns = 1_700_000_000_000_000_000
     end_ns = start_ns + n_time * step_ns
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -70,74 +70,74 @@ def write_analog(path: Path, *, n_series: int, n_time: int, seed: int = 1) -> Pa
     with h5py.File(path, "w", libver="latest") as f:
         _fix(f, "collection.uuid", _uuid())
 
-        sysg = f.create_group("AcquisitionSystem")
-        _fix(sysg, "rdfs.seeAlso", f"{SDG}ProdmlDasAcquisition")
-        _fix(sysg, "skos.broader", f"{SDG}PRODML_DISTRIBUTED_SENSING")
-        _fix(sysg, "collection.traceable_id", f"sdg://acquisition/{_uuid()}")
-        _fix(sysg, "collection.id", _uuid())
-        _fix(sysg, "collection.start.time", _iso(start_ns))
-        _fix(sysg, "schema.version", SCHEMA_VERSION)
-        _pair(sysg, "interrogator.pulse.rate", 10000.0, "Hz")
-        _pair(sysg, "gauge.length", 10.0, "m")
-        _pair(sysg, "spatial.resolution", 1.0, "m")
-        _pair(sysg, "sample.rate.max", 100.0, "Hz")
-        _pair(sysg, "sample.rate.min", 0.0, "Hz")
-        _pair(sysg, "export.timeout", 5.0, "s")
-        sysg.attrs.create("series.count", np.int64(n_series))
-        sysg.attrs.create("start.series.index", np.int64(0))
-        sysg.attrs.create("values.are.delta", np.bool_(False))
+        machine = f.create_group("Machine")
+        _fix(machine, "rdfs.seeAlso", f"{SDG}HostMachine")
+        _fix(machine, "skos.broader", f"{SDG}SYSML_STRUCTURE")
+        _fix(machine, "collection.traceable_id", f"sdg://machine/{_uuid()}")
+        _fix(machine, "collection.id", _uuid())
+        _fix(machine, "collection.start.time", _iso(start_ns))
+        _fix(machine, "schema.version", SCHEMA_VERSION)
+        _pair(machine, "gpu.sm.clock", 1.41e9, "Hz")
+        _pair(machine, "gpu.memory.clock", 1.001e9, "Hz")
+        _pair(machine, "gpu.tdp", 400.0, "W")
+        _pair(machine, "sample.rate.max", 10.0, "Hz")
+        _pair(machine, "sample.rate.min", 0.0, "Hz")
+        _pair(machine, "export.timeout", 5.0, "s")
+        machine.attrs.create("series.count", np.int64(n_series))
+        machine.attrs.create("start.series.index", np.int64(0))
+        machine.attrs.create("values.are.delta", np.bool_(False))
 
-        interrogator = sysg.create_group("Interrogator")
-        _fix(interrogator, "rdfs.seeAlso", f"{SDG}SysmlPartUsage")
-        _fix(interrogator, "part.uuid", _uuid())
-        interrogator.attrs.create("batch.max.size", np.int32(1024))
-        interrogator.attrs.create("queue.capacity", np.int32(2048))
-        interrogator.attrs.create("export.retry.count", np.int32(5))
-        interrogator.attrs.create("sampling.ratio", np.float64(1.0))
-        interrogator.attrs.create("compression.ratio", np.float64(2.0))
-        interrogator.attrs.create("data.transposed", np.bool_(True))
-        interrogator.attrs.create("values.relative", np.bool_(False))
+        scope = machine.create_group("Scope")
+        _fix(scope, "rdfs.seeAlso", f"{SDG}OtelInstrumentationScope")
+        _fix(scope, "part.uuid", _uuid())
+        scope.attrs.create("batch.max.size", np.int32(1024))
+        scope.attrs.create("queue.capacity", np.int32(2048))
+        scope.attrs.create("export.retry.count", np.int32(5))
+        scope.attrs.create("sampling.ratio", np.float64(1.0))
+        scope.attrs.create("compression.ratio", np.float64(2.0))
+        scope.attrs.create("data.transposed", np.bool_(True))
+        scope.attrs.create("values.relative", np.bool_(False))
         win_dt = np.dtype([("StartIndex", "<i4"), ("EndIndex", "<i4"), ("Stride", "<i4")])
         n_win = max(1, n_time // 32)
         edges = np.linspace(0, n_time, n_win + 1).astype(np.int32)
         windows = np.zeros(n_win, dtype=win_dt)
         windows["StartIndex"], windows["EndIndex"], windows["Stride"] = edges[:-1], edges[1:], 1
-        interrogator.create_dataset("Windows", data=windows)
+        scope.create_dataset("Windows", data=windows)
 
-        fiber = sysg.create_group("FiberOpticalPath[0]")
-        _fix(fiber, "rdfs.seeAlso", f"{SDG}ProdmlFiberOpticalPath")
-        _fix(fiber, "skos.broader", f"{SDG}SYSML_STRUCTURE")
-        _fix(fiber, "well.uuid", _uuid())
-        _fix(fiber, "path.uuid", _uuid())
+        gpu = machine.create_group("GpuDevice[0]")
+        _fix(gpu, "rdfs.seeAlso", f"{SDG}GpuDevice")
+        _fix(gpu, "skos.broader", f"{SDG}SYSML_STRUCTURE")
+        _fix(gpu, "host.uuid", _uuid())
+        _fix(gpu, "device.uuid", _uuid())
         anchor_dt = np.dtype(
-            [("SeriesIndex", "<i8"), ("MeasuredDepth", "<f8"), ("Offset", "<f8")]
+            [("SeriesIndex", "<i8"), ("DeviceIndex", "<f8"), ("Offset", "<f8")]
         )
         for ai in range(2):
-            loc = fiber.create_group(f"LocusAnchors[{ai}]")
-            _fix(loc, "reference.frame", "well-md")
-            _fix(loc, "scope.note", "anchor-pair" if ai == 0 else "all-loci")
+            port = gpu.create_group(f"PortAnchors[{ai}]")
+            _fix(port, "reference.frame", "pci-bdf")
+            _fix(port, "scope.note", "anchor-pair" if ai == 0 else "all-devices")
             npts = 2 if ai == 0 else n_series
             anchor = np.zeros(npts, dtype=anchor_dt)
             anchor["SeriesIndex"] = np.linspace(0, max(n_series - 1, 0), npts).astype(np.int64)
-            anchor["MeasuredDepth"] = np.linspace(0.0, float(n_series), npts)
+            anchor["DeviceIndex"] = np.linspace(0.0, float(max(n_series - 1, 0)), npts)
             anchor["Offset"] = 0.0
-            loc.create_dataset("SeriesAnchor", data=anchor)
+            port.create_dataset("SeriesAnchor", data=anchor)
 
-        das = sysg.create_group("DasRaw[0]")
-        das.attrs.create("series.count", np.int64(n_series))
-        das.attrs.create("start.series.index", np.int64(0))
-        _pair(das, "output.data.rate", 100.0, "Hz")
-        _fix(das, "value.unit", "counts")
-        _fix(das, "das.uuid", _uuid())
+        metric = machine.create_group("GpuMetric[0]")
+        metric.attrs.create("series.count", np.int64(n_series))
+        metric.attrs.create("start.series.index", np.int64(0))
+        _pair(metric, "output.data.rate", 10.0, "Hz")
+        _fix(metric, "value.unit", "W")
+        _fix(metric, "metric.uuid", _uuid())
 
-        values = das.create_dataset("Values", data=synth_signal(n_series, n_time, rng))
+        values = metric.create_dataset("Values", data=synth_signal(n_series, n_time, rng))
         values.attrs.create("count", np.int64(n_series) * np.int64(n_time))
         values.attrs.create("start.index", np.int64(0))
-        _fix(values, "dimensions", "locus,time")
+        _fix(values, "dimensions", "gpu,time")
         _fix(values, "part.start.time", _iso(start_ns))
         _fix(values, "part.end.time", _iso(end_ns))
 
-        ts = das.create_dataset(
+        ts = metric.create_dataset(
             "Timestamps",
             data=(start_ns + np.arange(n_time, dtype=np.int64) * step_ns),
         )
@@ -152,9 +152,7 @@ def write_analog(path: Path, *, n_series: int, n_time: int, seed: int = 1) -> Pa
 
 
 def count_tree(path: Path) -> dict[str, int]:
-    import h5py
-
-    n_groups = 1  # root
+    n_groups = 1
     n_datasets = 0
     n_attrs = 0
     max_depth = 0
@@ -183,7 +181,7 @@ def count_tree(path: Path) -> dict[str, int]:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--out", type=Path, required=True)
-    p.add_argument("--n-series", type=int, default=8)
+    p.add_argument("--n-series", type=int, default=8, help="GPU count (Values rows)")
     p.add_argument("--n-time", type=int, default=64)
     args = p.parse_args()
     out = write_analog(args.out, n_series=args.n_series, n_time=args.n_time)

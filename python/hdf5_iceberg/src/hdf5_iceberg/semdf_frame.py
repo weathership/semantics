@@ -6,8 +6,8 @@ import numpy as np
 
 from hdf5_iceberg.layout import probe_metric_group, see_also_iri
 
-# Default analog DAS: intensive-style — SUM is illegal.
-_DAS_AGG = ["AVG", "MIN", "MAX", "COUNT"]
+# Instantaneous GPU power/util: intensive — SUM is illegal.
+_GPU_AGG = ["AVG", "MIN", "MAX", "COUNT"]
 
 
 def values_table(path: str, *, series_lo: int = 0, series_hi: int | None = None):
@@ -19,7 +19,7 @@ def values_table(path: str, *, series_lo: int = 0, series_hi: int | None = None)
 
     with h5py.File(path, "r") as f:
         kind, met = probe_metric_group(f)
-        iri = see_also_iri(f) or "https://signals.zndx.org/sdg#ProdmlDasRawDataSet"
+        iri = see_also_iri(f) or "https://signals.zndx.org/sdg#GpuPower"
         vals = met["Values"]
         n = vals.shape[0]
         hi = n if series_hi is None else series_hi
@@ -27,10 +27,10 @@ def values_table(path: str, *, series_lo: int = 0, series_hi: int | None = None)
     flat = slab.reshape(-1)
     meta = measure_metadata(
         measure_iri=iri,
-        unit="counts",
+        unit="W",
         quantity_kind="intensive",
-        grain="locus×time",
-        aggregations=_DAS_AGG,
+        grain="gpu×time",
+        aggregations=_GPU_AGG,
     )
     field = pa.field("value", pa.from_numpy_dtype(flat.dtype), metadata=meta)
     return pa.Table.from_arrays([flat], schema=pa.schema([field]))

@@ -1,0 +1,47 @@
+## Scratch SDG extension: SysML machine parts for Gaius GPU / OTel metrics.
+## Not yet Aegir-admitted into sdg-corpora. IRIs are the SDG namespace
+## (no gaius: prefix). PRODML/WITSML families exist in SDG but are out of
+## this analog. Broader: SYSML_STRUCTURE. OTel alignment: sdg:hasResource,
+## sdg:inService, sdg:hasAttribute (ontology/sdg-vocab.ttl).
+
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sdg:  <https://signals.zndx.org/sdg#> .
+
+sdg:HostMachine a owl:Class, skos:Concept ;
+    rdfs:label "Host machine" ;
+    skos:prefLabel "Host machine" ;
+    skos:definition "A SysML part: a compute host (bare metal or VM) that contains GPU devices and emits OpenTelemetry resources (service, host, container)." ;
+    skos:broader sdg:SYSML_STRUCTURE ;
+    skos:inScheme <https://signals.zndx.org/sdg/scheme> ;
+    rdfs:seeAlso sdg:SYSML_STRUCTURE .
+
+sdg:GpuDevice a owl:Class, skos:Concept ;
+    rdfs:label "GPU device" ;
+    skos:prefLabel "GPU device" ;
+    skos:definition "A SysML part usage: a physical accelerator on a host. Instantaneous power, utilization, clocks, and memory are attributes of this part, not generic BI numbers." ;
+    skos:broader sdg:SYSML_STRUCTURE ;
+    skos:inScheme <https://signals.zndx.org/sdg/scheme> ;
+    rdfs:seeAlso sdg:HostMachine .
+
+sdg:OtelInstrumentationScope a owl:Class, skos:Concept ;
+    rdfs:label "OpenTelemetry instrumentation scope" ;
+    skos:prefLabel "OpenTelemetry instrumentation scope" ;
+    skos:definition "The OTel Scope (exporter/SDK) that records measurements of SysML parts. Aligns with sdg:inService and sdg:hasResource." ;
+    skos:broader sdg:SYSML_BEHAVIOR ;
+    skos:inScheme <https://signals.zndx.org/sdg/scheme> .
+
+sdg:GpuPower a owl:Class, skos:Concept ;
+    rdfs:label "GPU power" ;
+    skos:prefLabel "GPU power" ;
+    skos:definition "Instantaneous GPU board power in watts. Intensive (do not SUM across time without a duration); grain is device × sample. Typical instrument: DCGM_FI_DEV_POWER_USAGE / OTel gpu.power." ;
+    skos:broader sdg:GpuDevice ;
+    skos:inScheme <https://signals.zndx.org/sdg/scheme> .
+
+sdg:GpuUtilization a owl:Class, skos:Concept ;
+    rdfs:label "GPU SM utilization" ;
+    skos:prefLabel "GPU SM utilization" ;
+    skos:definition "Fraction of SM cycles busy, 0–100. Intensive occupancy; AVG/MIN/MAX/COUNT legal, SUM not." ;
+    skos:broader sdg:GpuDevice ;
+    skos:inScheme <https://signals.zndx.org/sdg/scheme> .

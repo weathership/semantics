@@ -14,7 +14,8 @@ This is **not** Gaius Engine `/sci`.
 | `python/hdf5_iceberg` | Complete HDF5 library (wave 1+) |
 | `crates/hdf5-df` | DataFusion TableProvider (wave 2) |
 | `java/iceberg-hdf5` | Iceberg `FormatModel` (wave 2) |
-| `analog/` | SysML/SDG HDF5 analog (7 groups / 5 datasets / 56 attrs) |
+| `analog/` | SysML **machine** HDF5 analog (host + GPU + OTel scope; 7/5/56) |
+| `ontology/scratch/` | SDG TTL for HostMachine / GpuDevice (Aegir-gated corpora later) |
 
 ```bash
 just semantic-ci

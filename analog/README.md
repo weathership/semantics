@@ -1,12 +1,14 @@
-# SysML / SDG HDF5 analog
+# SysML machine analog (OpenTelemetry + GPU parts)
 
-Generator: `generate_sdg_hdf5.py`. Fingerprint: **7 groups / 5 datasets / 56 attrs**, depth 4, `Values` int16.
+Shape is the cybersec HDF5 fingerprint: **7 groups / 5 datasets / 56 attrs**, depth 4.
+Names are **not** PRODML/DAS. The tree is a SysML **Machine** (host) with **GpuDevice**
+parts and an OTel **Scope**. IRIs live in `ontology/scratch/sdg-machine.ttl`
+(`sdg:HostMachine`, `sdg:GpuDevice`, `sdg:GpuPower`) under SYSML_STRUCTURE.
 
-CI default is `--n-series 8 --n-time 64` (not the 5001×10000 production-sized analog). K20 formula is still `floor(8 MiB / (n_time × 2))` (T=10000 → 419 rows).
+Cybersec files that still use `ResourceMetrics` remain a valid **OTel** layout in
+`hdf5_iceberg.layout`. WITSML/PRODML stay in SDG for other sources.
 
 ```bash
 just analog
 just test
 ```
-
-Run from a Nix/devenv shell so `h5py`/`numpy` resolve `libz`. Tests write files under pytest tmp; a committed binary fixture is optional.

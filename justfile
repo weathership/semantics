@@ -21,7 +21,7 @@ test-python:
 
 test: check test-python
 
-analog OUT="analog/fixtures/sdg_sysml_small.h5":
+analog OUT="analog/fixtures/sdg_machine_small.h5":
     uv run --with h5py --with numpy \
         python {{root}}/analog/generate_sdg_hdf5.py --out {{root}}/{{OUT}} --n-series 8 --n-time 64
 

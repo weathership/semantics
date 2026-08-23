@@ -2,7 +2,7 @@
 
 Python HDF5 Iceberg library (complete-path home: `weathership/semantics`).
 
-Layout probe: **SysML `/AcquisitionSystem/DasRaw[0]/Values` first**, then OTel `ResourceMetrics`, else `#SL.00000005`. Missing `rdfs.seeAlso` on SysML → `#SL.00000004`.
+Layout probe: **SysML `Machine/GpuMetric[0]/Values` first**, then OTel `ResourceMetrics`, else `#SL.00000005`. Missing `rdfs.seeAlso` on `Machine` → `#SL.00000004`.
 
 External Layer A URIs stay GET-only. Warehouse-owned HDF5 **write** is in this program (not a Non-Goal). SemDF attach: `hdf5_iceberg.semdf_frame.values_table`.
 

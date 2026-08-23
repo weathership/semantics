@@ -1,4 +1,4 @@
-"""Layout probe: SysML/SDG analog first, then OTel. Gaps fail with guru codes."""
+"""Layout probe: SysML machine (GPU) analog first, then OTel ResourceMetrics."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from typing import Any
 GURU_NOIRI = "#SL.00000004.NOIRI"
 GURU_LAYOUT = "#SL.00000005.LAYOUT"
 
-SYSML_DAS = "AcquisitionSystem/DasRaw[0]"
-SYSML_VALUES = "AcquisitionSystem/DasRaw[0]/Values"
+MACHINE_METRIC = "Machine/GpuMetric[0]"
+MACHINE_VALUES = "Machine/GpuMetric[0]/Values"
 
 
 class LayoutError(Exception):
@@ -24,14 +24,14 @@ def _decode(val: Any) -> str:
 
 
 def probe_metric_group(f: Any) -> tuple[str, Any]:
-    """Return (kind, group_that_contains Values+Timestamps)."""
-    if "AcquisitionSystem" in f:
-        sysg = f["AcquisitionSystem"]
-        if "rdfs.seeAlso" not in sysg.attrs:
-            raise LayoutError(GURU_NOIRI, "AcquisitionSystem missing rdfs.seeAlso")
-        if SYSML_DAS not in f or "Values" not in f[SYSML_DAS]:
-            raise LayoutError(GURU_LAYOUT, "SysML tree missing DasRaw[0]/Values")
-        return "sdg_sysml", f[SYSML_DAS]
+    """Return (kind, group that contains Values+Timestamps)."""
+    if "Machine" in f:
+        machine = f["Machine"]
+        if "rdfs.seeAlso" not in machine.attrs:
+            raise LayoutError(GURU_NOIRI, "Machine missing rdfs.seeAlso")
+        if MACHINE_METRIC not in f or "Values" not in f[MACHINE_METRIC]:
+            raise LayoutError(GURU_LAYOUT, "SysML machine tree missing GpuMetric[0]/Values")
+        return "sdg_machine", f[MACHINE_METRIC]
 
     if "ResourceMetrics" in f:
         rm = f["ResourceMetrics"]
@@ -44,10 +44,13 @@ def probe_metric_group(f: Any) -> tuple[str, Any]:
                 return "otel", obj
         raise LayoutError(GURU_LAYOUT, "OTel ResourceMetrics has no Values")
 
-    raise LayoutError(GURU_LAYOUT, "neither SysML AcquisitionSystem nor OTel ResourceMetrics")
+    raise LayoutError(
+        GURU_LAYOUT,
+        "neither SysML Machine/GpuMetric nor OTel ResourceMetrics",
+    )
 
 
 def see_also_iri(f: Any) -> str | None:
-    if "AcquisitionSystem" in f and "rdfs.seeAlso" in f["AcquisitionSystem"].attrs:
-        return _decode(f["AcquisitionSystem"].attrs["rdfs.seeAlso"])
+    if "Machine" in f and "rdfs.seeAlso" in f["Machine"].attrs:
+        return _decode(f["Machine"].attrs["rdfs.seeAlso"])
     return None

@@ -11,5 +11,6 @@ pub use provider::Hdf5TableProvider;
 pub use read::{open_values, series_block_rows, SERIES_BLOCK_TARGET_BYTES};
 
 pub const GURU_HDF5DF: &str = "#SL.00000018.HDF5DF";
+pub const GURU_NORUSTFS: &str = "#SL.00000020.NORUSTFS";
 pub const VALUES_PATH: &str = "Machine/GpuMetric[0]/Values";
 pub const MACHINE_GROUP: &str = "Machine";

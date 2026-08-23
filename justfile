@@ -27,3 +27,23 @@ analog OUT="analog/fixtures/sdg_machine_small.h5":
 
 # Elevated gate (not smoke).
 semantic-ci: analog test
+
+# Many-file scan: DataFusion+hdf5-pure vs h5py. Local copies of the analog.
+# Not smoke. RustFS target: `just hdf5-df-bench-rustfs` (fails if :9010 down).
+hdf5-df-bench n="32":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    WORK=$(mktemp -d)
+    cargo build -p hdf5-df --bin hdf5-df-bench --quiet
+    ./target/debug/hdf5-df-bench --fixture {{root}}/analog/fixtures/sdg_machine_small.h5 \
+        --n-files {{n}} --target local --work-dir "$WORK"
+    uv run --with h5py --with numpy python {{root}}/analog/bench_h5py.py --work-dir "$WORK" --workers 1
+    uv run --with h5py --with numpy python {{root}}/analog/bench_h5py.py --work-dir "$WORK" --workers {{n}}
+
+hdf5-df-bench-rustfs n="32":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -p hdf5-df --bin hdf5-df-bench --quiet
+    ./target/debug/hdf5-df-bench --fixture {{root}}/analog/fixtures/sdg_machine_small.h5 \
+        --n-files {{n}} --target rustfs --rustfs-addr "${RUSTFS_ADDRESS:-127.0.0.1:9010}"
+

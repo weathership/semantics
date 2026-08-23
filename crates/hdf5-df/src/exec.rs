@@ -16,30 +16,34 @@ use futures::stream;
 
 use crate::read::read_partition;
 
+/// One DataFusion partition: one HDF5 file + K20 row window.
+#[derive(Debug, Clone)]
+pub struct FileSlice {
+    pub path: PathBuf,
+    pub start_gpu: u64,
+    pub n_gpu: u64,
+    pub n_time: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Hdf5Exec {
-    path: PathBuf,
     schema: SchemaRef,
     projection: Option<Vec<usize>>,
-    /// (start_gpu, n_gpu) per partition
-    partitions: Vec<(u64, u64)>,
-    n_time: u64,
+    slices: Vec<FileSlice>,
     properties: PlanProperties,
 }
 
 impl Hdf5Exec {
     pub fn try_new(
-        path: PathBuf,
         schema: SchemaRef,
         projection: Option<Vec<usize>>,
-        partitions: Vec<(u64, u64)>,
-        n_time: u64,
+        slices: Vec<FileSlice>,
     ) -> Self {
         let projected = match &projection {
             Some(idx) => Arc::new(schema.project(idx).expect("projection")),
             None => Arc::clone(&schema),
         };
-        let npart = partitions.len().max(1);
+        let npart = slices.len().max(1);
         let properties = PlanProperties::new(
             EquivalenceProperties::new(Arc::clone(&projected)),
             Partitioning::UnknownPartitioning(npart),
@@ -47,11 +51,9 @@ impl Hdf5Exec {
             Boundedness::Bounded,
         );
         Self {
-            path,
             schema: projected,
             projection,
-            partitions,
-            n_time,
+            slices,
             properties,
         }
     }
@@ -59,12 +61,7 @@ impl Hdf5Exec {
 
 impl DisplayAs for Hdf5Exec {
     fn fmt_as(&self, _t: DisplayFormatType, f: &mut Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "Hdf5Exec: file={}, partitions={}",
-            self.path.display(),
-            self.partitions.len()
-        )
+        write!(f, "Hdf5Exec: partitions={}", self.slices.len())
     }
 }
 
@@ -108,19 +105,22 @@ impl ExecutionPlan for Hdf5Exec {
         partition: usize,
         _context: Arc<TaskContext>,
     ) -> datafusion::common::Result<SendableRecordBatchStream> {
-        let (start, n) = self.partitions.get(partition).copied().ok_or_else(|| {
+        let slice = self.slices.get(partition).cloned().ok_or_else(|| {
             DataFusionError::Internal(format!("partition {partition} out of range"))
         })?;
-        let path = self.path.clone();
-        let n_time = self.n_time;
         let projection = self.projection.clone();
         let schema = Arc::clone(&self.schema);
-        let batch = read_partition(path.as_path(), start, n, n_time, projection.as_deref())
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
+        let batch = read_partition(
+            slice.path.as_path(),
+            slice.start_gpu,
+            slice.n_gpu,
+            slice.n_time,
+            projection.as_deref(),
+        )
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
         Ok(Box::pin(RecordBatchStreamAdapter::new(
             schema,
             stream::iter(vec![Ok(batch)]),
         )))
     }
 }
-

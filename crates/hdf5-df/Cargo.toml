@@ -9,11 +9,15 @@ rust-version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
 datafusion.workspace = true
 futures = "0.3"
 hdf5-pure.workspace = true
+object_store = { version = "0.12", features = ["aws"] }
 semdf = { path = "../semdf" }
 thiserror.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "fs"] }
 
-[dev-dependencies]
-tokio.workspace = true
+[[bin]]
+name = "hdf5-df-bench"
+path = "src/bin/hdf5-df-bench.rs"

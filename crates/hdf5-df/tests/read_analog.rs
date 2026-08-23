@@ -55,6 +55,27 @@ async fn scan_analog_count_and_semdf() {
     assert_eq!(n, 8 * 64);
 }
 
+#[tokio::test]
+async fn listing_two_files_doubles_count() {
+    let path = fixture();
+    let provider = Hdf5TableProvider::try_listing(vec![path.clone(), path]).unwrap();
+    assert_eq!(provider.n_files(), 2);
+    let ctx = SessionContext::new();
+    ctx.register_table("gpu_power", Arc::new(provider)).unwrap();
+    let df = ctx.sql("SELECT COUNT(*) AS n FROM gpu_power").await.unwrap();
+    let batches = df.collect().await.unwrap();
+    let col = batches[0].column(0);
+    let n = if let Some(a) = col.as_any().downcast_ref::<Int64Array>() {
+        a.value(0)
+    } else {
+        col.as_any()
+            .downcast_ref::<UInt64Array>()
+            .expect("count type")
+            .value(0) as i64
+    };
+    assert_eq!(n, 8 * 64 * 2);
+}
+
 #[test]
 fn missing_file_is_guru() {
     let err = Hdf5TableProvider::try_new("/no/such/machine.h5").unwrap_err();

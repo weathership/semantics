@@ -13,7 +13,7 @@
     <maven.compiler.release>17</maven.compiler.release>
     <jhdf.version>0.13.0</jhdf.version>
     <!-- Signals Iceberg fork published locally after FileFormat.HDF5 (./gradlew publishToMavenLocal). -->
-    <iceberg.version>b310cba.dirty</iceberg.version>
+    <iceberg.version>1.11.0-signals-hdf5</iceberg.version>
   </properties>
   <dependencies>
     <!-- Pin: io.jhdf:jhdf 0.13.0 (MIT). From-source SHA vendor is a follow-on; this

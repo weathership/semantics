@@ -60,11 +60,35 @@ def synth_signal(n_series: int, n_time: int, rng: np.random.Generator) -> np.nda
     return np.clip(np.rint(sig), info.min, info.max).astype(np.int16)
 
 
-def write_analog(path: Path, *, n_series: int, n_time: int, seed: int = 1) -> Path:
+def write_analog(
+    path: Path,
+    *,
+    n_series: int,
+    n_time: int,
+    seed: int = 1,
+    values: np.ndarray | None = None,
+    timestamps: np.ndarray | None = None,
+    step_ns: int = 100_000_000,
+    start_ns: int = 1_700_000_000_000_000_000,
+) -> Path:
     rng = np.random.default_rng(seed)
-    step_ns = 100_000_000  # 10 Hz
-    start_ns = 1_700_000_000_000_000_000
-    end_ns = start_ns + n_time * step_ns
+    if values is None:
+        values = synth_signal(n_series, n_time, rng)
+    else:
+        values = np.asarray(values)
+        if values.ndim != 2:
+            raise ValueError("values must be rank-2 (n_series, n_time)")
+        n_series, n_time = int(values.shape[0]), int(values.shape[1])
+    if timestamps is None:
+        timestamps = start_ns + np.arange(n_time, dtype=np.int64) * step_ns
+    else:
+        timestamps = np.asarray(timestamps, dtype=np.int64)
+        if timestamps.shape != (n_time,):
+            raise ValueError("timestamps length must equal n_time")
+        start_ns = int(timestamps[0]) if n_time else start_ns
+        if n_time > 1:
+            step_ns = int(timestamps[1] - timestamps[0])
+    end_ns = int(timestamps[-1]) if n_time else start_ns
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with h5py.File(path, "w", libver="latest") as f:
@@ -130,17 +154,14 @@ def write_analog(path: Path, *, n_series: int, n_time: int, seed: int = 1) -> Pa
         _fix(metric, "value.unit", "W")
         _fix(metric, "metric.uuid", _uuid())
 
-        values = metric.create_dataset("Values", data=synth_signal(n_series, n_time, rng))
+        values = metric.create_dataset("Values", data=np.asarray(values, dtype=np.int16))
         values.attrs.create("count", np.int64(n_series) * np.int64(n_time))
         values.attrs.create("start.index", np.int64(0))
         _fix(values, "dimensions", "gpu,time")
         _fix(values, "part.start.time", _iso(start_ns))
         _fix(values, "part.end.time", _iso(end_ns))
 
-        ts = metric.create_dataset(
-            "Timestamps",
-            data=(start_ns + np.arange(n_time, dtype=np.int64) * step_ns),
-        )
+        ts = metric.create_dataset("Timestamps", data=np.asarray(timestamps, dtype=np.int64))
         ts.attrs.create("count", np.int64(n_time))
         ts.attrs.create("start.index", np.int64(0))
         _fix(ts, "part.start.time", _iso(start_ns))
@@ -176,6 +197,55 @@ def count_tree(path: Path) -> dict[str, int]:
         "attrs": n_attrs,
         "depth": max_depth,
     }
+
+
+def write_warehouse_analog(path: Path, samples: list[dict]) -> Path:
+    """Pack Kudu-grain GPU rows into the SysML analog (Values = watts int16).
+
+    ``samples`` items: ts_ns, gpu_index, power_w, util_pct, mem_used_mb, temp_c.
+    Extra series rows 6..23 hold util/mem/temp so the fingerprint tree shape
+    stays 7 groups / 5 datasets when n_gpu<=6 and we only write Values.
+    """
+    if not samples:
+        raise ValueError("write_warehouse_analog: no samples")
+    by_ts: dict[int, dict[int, dict]] = {}
+    gpus: set[int] = set()
+    for s in samples:
+        ts = int(s["ts_ns"])
+        gi = int(s["gpu_index"])
+        gpus.add(gi)
+        by_ts.setdefault(ts, {})[gi] = s
+    times = sorted(by_ts)
+    n_gpu = max(gpus) + 1
+    n_time = len(times)
+    # 4 measure planes stacked as series: power, util, mem, temp
+    n_series = n_gpu * 4
+    mat = np.zeros((n_series, n_time), dtype=np.int16)
+    info = np.iinfo(np.int16)
+    for t_i, ts in enumerate(times):
+        for gi, s in by_ts[ts].items():
+            mat[gi, t_i] = int(np.clip(round(float(s["power_w"])), info.min, info.max))
+            mat[n_gpu + gi, t_i] = int(
+                np.clip(round(float(s["util_pct"])), info.min, info.max)
+            )
+            mat[2 * n_gpu + gi, t_i] = int(
+                np.clip(round(float(s["mem_used_mb"])), info.min, info.max)
+            )
+            mat[3 * n_gpu + gi, t_i] = int(
+                np.clip(round(float(s["temp_c"])), info.min, info.max)
+            )
+    out = write_analog(
+        path,
+        n_series=n_series,
+        n_time=n_time,
+        values=mat,
+        timestamps=np.asarray(times, dtype=np.int64),
+    )
+    with h5py.File(out, "a") as f:
+        f["Machine/GpuMetric[0]/Values"].attrs.create(
+            "warehouse.n_gpu", np.int64(n_gpu)
+        )
+    return out
 
 
 def main() -> None:

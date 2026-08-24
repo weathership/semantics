@@ -26,15 +26,28 @@ public final class Hdf5MachineReader {
     public final int nGpu;
     public final int nTime;
     public final short[] values; // row-major nGpu × nTime
+    public final long[] timestamps; // nTime, 0 if analog has no Timestamps
 
     Window(int nGpu, int nTime, short[] values) {
+      this(nGpu, nTime, values, new long[nTime]);
+    }
+
+    Window(int nGpu, int nTime, short[] values, long[] timestamps) {
       this.nGpu = nGpu;
       this.nTime = nTime;
       this.values = values;
+      this.timestamps = timestamps == null ? new long[nTime] : timestamps;
     }
 
     public int size() {
       return nGpu * nTime;
+    }
+
+    public long timestampAt(int t) {
+      if (t < 0 || t >= timestamps.length) {
+        return 0L;
+      }
+      return timestamps[t];
     }
   }
 
@@ -54,7 +67,27 @@ public final class Hdf5MachineReader {
         throw guru("Values rank " + dims.length + " want 2");
       }
       Object raw = ds.getData();
-      return new Window(dims[0], dims[1], flatten(raw, dims[0], dims[1]));
+      short[] values = flatten(raw, dims[0], dims[1]);
+      long[] timestamps = new long[dims[1]];
+      try {
+        Dataset ts = file.getDatasetByPath("/Machine/GpuMetric[0]/Timestamps");
+        if (ts != null) {
+          Object traw = ts.getData();
+          if (traw instanceof long[]) {
+            long[] src = (long[]) traw;
+            System.arraycopy(src, 0, timestamps, 0, Math.min(src.length, timestamps.length));
+          } else if (traw instanceof long[][]) {
+            long[][] src = (long[][]) traw;
+            int n = Math.min(src.length > 0 ? src[0].length : 0, timestamps.length);
+            if (src.length > 0) {
+              System.arraycopy(src[0], 0, timestamps, 0, n);
+            }
+          }
+        }
+      } catch (RuntimeException ignored) {
+        // analog fixtures without Timestamps keep zeros
+      }
+      return new Window(dims[0], dims[1], values, timestamps);
     } catch (RuntimeException e) {
       if (e.getMessage() != null && e.getMessage().startsWith("#SL.")) {
         throw e;

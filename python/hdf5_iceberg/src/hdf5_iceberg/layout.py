@@ -25,6 +25,10 @@ def _decode(val: Any) -> str:
 
 def probe_metric_group(f: Any) -> tuple[str, Any]:
     """Return (kind, group that contains Values+Timestamps)."""
+    # signals tier1 (schema_version 2): see signal_layout.py
+    if "signal" in f and int(f["signal"].attrs.get("schema_version", 0)) == 2:
+        return "signal", f["signal"]
+
     if "Machine" in f:
         machine = f["Machine"]
         if "rdfs.seeAlso" not in machine.attrs:

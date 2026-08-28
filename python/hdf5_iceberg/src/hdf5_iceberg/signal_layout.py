@@ -32,10 +32,27 @@ ROOT = "signal"
 DEC_SCALE = 6  # DECIMAL(18,6) in signal_tier0/tier1
 
 _CHUNK_T = 3600
+# A lane is one signal_tier0 primary-key stream: (series_id, gpu, inst). DCGM
+# writes all N GPUs of a metric at one ts under one series_id, so keying a lane
+# by series_id alone collapsed those N rows onto one cell and dropped N-1 of them
+# (the same 5-of-6-GPU loss the Kudu PK fix cured on the write side). Null gpu/inst
+# get a reserved key sentinel so a "lacks gpu" lane stays distinct and sortable.
+_NULL_KEY = -(2**31)
 
 
 def _chunks(n_s: int, n_t: int) -> tuple[int, int]:
     return (1, max(1, min(_CHUNK_T, n_t)))
+
+
+def _lane_key(r: dict[str, Any]) -> tuple[int, int, int]:
+    """(series_id, gpu, inst) identity of a row's lane; null gpu/inst -> sentinel."""
+    g = r.get("gpu")
+    i = r.get("inst")
+    return (
+        int(r["series_id"]),
+        int(g) if g is not None else _NULL_KEY,
+        int(i) if i is not None else _NULL_KEY,
+    )
 
 
 def _plane(
@@ -44,28 +61,41 @@ def _plane(
     *,
     dec: bool,
 ) -> tuple[int, int]:
-    """Write one plane (int or dec). Returns (n_series, n_time)."""
+    """Write one plane (int or dec). Returns (n_series, n_time).
+
+    One row per lane (series_id, gpu, inst) x time cell. Lanes are sorted by the
+    full key, so series_id stays non-decreasing (with duplicates for a multi-GPU
+    metric) and the reader's series_id bounds/binary search still hold.
+    """
     ts_set: set[int] = set()
-    sid_set: set[int] = set()
+    lane_set: set[tuple[int, int, int]] = set()
     for r in rows:
         ts_set.add(int(r["ts_ns"]))
-        sid_set.add(int(r["series_id"]))
+        lane_set.add(_lane_key(r))
     ts = np.array(sorted(ts_set), dtype=np.int64)
-    sids = np.array(sorted(sid_set), dtype=np.int64)
+    lanes = sorted(lane_set)  # by (series_id, gpu, inst) -> series_id non-decreasing
     t_idx = {int(t): i for i, t in enumerate(ts)}
-    s_idx = {int(s): i for i, s in enumerate(sids)}
-    n_s, n_t = len(sids), len(ts)
+    s_idx = {lane: i for i, lane in enumerate(lanes)}
+    n_s, n_t = len(lanes), len(ts)
 
     values = np.zeros((n_s, n_t), dtype=np.int64)
     present = np.zeros((n_s, n_t), dtype=np.uint8)
     src = np.zeros(n_s, dtype=np.int8)
+    sids = np.array([lane[0] for lane in lanes], dtype=np.int64)
     gpu = np.zeros(n_s, dtype=np.int8)
     gpu_null = np.ones(n_s, dtype=np.uint8)
     inst = np.zeros(n_s, dtype=np.int16)
     inst_null = np.ones(n_s, dtype=np.uint8)
+    for k, (_sid, gk, ik) in enumerate(lanes):
+        if gk != _NULL_KEY:
+            gpu[k] = gk
+            gpu_null[k] = 0
+        if ik != _NULL_KEY:
+            inst[k] = ik
+            inst_null[k] = 0
 
     for r in rows:
-        i = s_idx[int(r["series_id"])]
+        i = s_idx[_lane_key(r)]
         j = t_idx[int(r["ts_ns"])]
         if dec:
             d = r["val_d"]
@@ -80,13 +110,7 @@ def _plane(
         else:
             values[i, j] = int(r["val_i"])
         present[i, j] = 1
-        src[i] = int(r["src"])
-        if r.get("gpu") is not None:
-            gpu[i] = int(r["gpu"])
-            gpu_null[i] = 0
-        if r.get("inst") is not None:
-            inst[i] = int(r["inst"])
-            inst_null[i] = 0
+        src[i] = int(r["src"])  # constant within a lane (a series_id's source)
 
     grp.create_dataset("ts", data=ts)
     grp.create_dataset("series_id", data=sids)

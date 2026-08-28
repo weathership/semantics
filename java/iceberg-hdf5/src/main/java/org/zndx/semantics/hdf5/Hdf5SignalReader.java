@@ -178,8 +178,23 @@ public final class Hdf5SignalReader {
       List<Integer> sel = new ArrayList<>();
       for (long sid : w.seriesIds) {
         int i = Arrays.binarySearch(series, sid);
-        if (i >= 0) {
-          sel.add(i);
+        if (i < 0) {
+          continue;
+        }
+        // series_id is sorted but NOT unique: one metric with N GPUs is N lanes
+        // sharing a series_id (lanes keyed by (series_id,gpu,inst)). binarySearch
+        // lands on one of them; select the whole contiguous run so a series
+        // filter returns every GPU, not just one.
+        int lo = i;
+        int hi = i;
+        while (lo > 0 && series[lo - 1] == sid) {
+          lo--;
+        }
+        while (hi + 1 < series.length && series[hi + 1] == sid) {
+          hi++;
+        }
+        for (int k = lo; k <= hi; k++) {
+          sel.add(k);
         }
       }
       rows = sel.stream().mapToInt(Integer::intValue).toArray();
